@@ -9,14 +9,9 @@ import 'package:alice/ui/page/alice_calls_list_screen.dart';
 import 'package:alice/utils/shake_detector.dart';
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:rxdart/rxdart.dart';
 
 class AliceCore {
-  /// Should user be notified with notification if there's new request catched
-  /// by Alice
-  final bool showNotification;
-
   /// Should inspector be opened on device shake (works only with physical
   /// with sensors)
   final bool showInspectorOnShake;
@@ -28,9 +23,6 @@ class AliceCore {
   final BehaviorSubject<List<AliceHttpCall>> callsSubject =
       BehaviorSubject.seeded([]);
 
-  /// Icon url for notification
-  final String notificationIcon;
-
   ///Max number of calls that are stored in memory. When count is reached, FIFO
   ///method queue will be used to remove elements.
   final int maxCallsCount;
@@ -41,31 +33,21 @@ class AliceCore {
   ///Flag used to show/hide share button
   final bool? showShareButton;
 
-  late FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin;
   GlobalKey<NavigatorState>? navigatorKey;
   Brightness _brightness = Brightness.light;
   bool _isInspectorOpened = false;
   ShakeDetector? _shakeDetector;
   StreamSubscription? _callsSubscription;
-  String? _notificationMessage;
-  String? _notificationMessageShown;
-  bool _notificationProcessing = false;
 
   /// Creates alice core instance
   AliceCore(
     this.navigatorKey, {
-    required this.showNotification,
     required this.showInspectorOnShake,
     required this.darkTheme,
-    required this.notificationIcon,
     required this.maxCallsCount,
     this.directionality,
     this.showShareButton,
   }) {
-    if (showNotification) {
-      _initializeNotificationsPlugin();
-      _callsSubscription = callsSubject.listen((_) => _onCallsChanged());
-    }
     if (showInspectorOnShake) {
       _shakeDetector = ShakeDetector.autoStart(
         onPhoneShake: () {
@@ -86,38 +68,6 @@ class AliceCore {
 
   /// Get currently used brightness
   Brightness get brightness => _brightness;
-
-  void _initializeNotificationsPlugin() {
-    _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-    final initializationSettingsAndroid =
-        AndroidInitializationSettings(notificationIcon);
-    const initializationSettingsIOS = IOSInitializationSettings();
-    final initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-    );
-    _flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
-      onSelectNotification: _onSelectedNotification,
-    );
-  }
-
-  void _onCallsChanged() async {
-    if (callsSubject.value.isNotEmpty) {
-      _notificationMessage = _getNotificationMessage();
-      if (_notificationMessage != _notificationMessageShown &&
-          !_notificationProcessing) {
-        await _showLocalNotification();
-        _onCallsChanged();
-      }
-    }
-  }
-
-  Future<void> _onSelectedNotification(String? payload) async {
-    assert(payload != null, "payload can't be null");
-    navigateToCallListScreen();
-    return;
-  }
 
   /// Opens Http calls inspector. This will navigate user to the new fullscreen
   /// page where all listened http calls can be viewed.
@@ -203,38 +153,6 @@ class AliceCore {
     }
 
     return notificationMessageString;
-  }
-
-  Future _showLocalNotification() async {
-    _notificationProcessing = true;
-    const channelId = "Alice";
-    const channelName = "Alice";
-    const channelDescription = "Alice";
-    final androidPlatformChannelSpecifics = AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDescription,
-      enableVibration: false,
-      playSound: false,
-      largeIcon: DrawableResourceAndroidBitmap(notificationIcon),
-    );
-    const iOSPlatformChannelSpecifics =
-        IOSNotificationDetails(presentSound: false);
-    final platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
-    final String? message = _notificationMessage;
-    await _flutterLocalNotificationsPlugin.show(
-      0,
-      "Alice (total: ${callsSubject.value.length} requests)",
-      message,
-      platformChannelSpecifics,
-      payload: "",
-    );
-    _notificationMessageShown = message;
-    _notificationProcessing = false;
-    return;
   }
 
   /// Add alice http call to calls subject
