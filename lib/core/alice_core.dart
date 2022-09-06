@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:alice/core/alice_utils.dart';
 import 'package:alice/helper/alice_save_helper.dart';
-import 'package:alice/model/alice_http_error.dart';
+import 'package:alice/logger/alice_logger.dart';
+import 'package:alice/logger/logs/data.dart';
 import 'package:alice/model/alice_http_call.dart';
+import 'package:alice/model/alice_http_error.dart';
 import 'package:alice/model/alice_http_response.dart';
 import 'package:alice/ui/page/alice_calls_list_screen.dart';
 import 'package:alice/utils/shake_detector.dart';
@@ -33,6 +35,10 @@ class AliceCore {
   ///Flag used to show/hide share button
   final bool? showShareButton;
 
+  final LogCollection? logCollection;
+
+  late final AliceLogger? _aliceLogger;
+
   GlobalKey<NavigatorState>? navigatorKey;
   Brightness _brightness = Brightness.light;
   bool _isInspectorOpened = false;
@@ -47,6 +53,7 @@ class AliceCore {
     required this.maxCallsCount,
     this.directionality,
     this.showShareButton,
+    this.logCollection,
   }) {
     if (showInspectorOnShake) {
       _shakeDetector = ShakeDetector.autoStart(
@@ -55,6 +62,11 @@ class AliceCore {
         },
         shakeThresholdGravity: 5,
       );
+    }
+    if (logCollection != null) {
+      _aliceLogger = AliceLogger(logCollection: logCollection!);
+    } else {
+      _aliceLogger = null;
     }
     _brightness = darkTheme ? Brightness.dark : Brightness.light;
   }
@@ -84,7 +96,7 @@ class AliceCore {
       Navigator.push<void>(
         context,
         MaterialPageRoute(
-          builder: (context) => AliceCallsListScreen(this),
+          builder: (context) => AliceCallsListScreen(this, _aliceLogger),
         ),
       ).then((onValue) => _isInspectorOpened = false);
     }
